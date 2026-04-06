@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>두 개의 방과 폭탄</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;400;600;700;900&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --blue: #1a3a8f;
+    --blue-light: #2952c4;
+    --blue-pale: #d6e4ff;
+    --red: #b81c1c;
+    --red-light: #e02020;
+    --red-pale: #ffe0e0;
+    --gray: #4a4a5a;
+    --gray-light: #e8e8f0;
+    --cream: #faf8f4;
+    --dark: #1a1a2e;
+    --gold: #c9a84c;
+    --white: #ffffff;
+    --slide-w: 900px;
+    --slide-h: 560px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #111118;
+    font-family: 'Noto Sans KR', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px 20px 80px;
+    color: var(--dark);
+    -webkit-font-smoothing: antialiased;
+  }
+  .deck {
+    position: relative;
+    width: var(--slide-w);
+    height: var(--slide-h);
+    overflow: hidden;
+    border-radius: 16px;
+    box-shadow: 0 40px 80px rgba(0,0,0,.6);
+  }
+  .slide {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(60px);
+    transition: opacity .45s cubic-bezier(.4,0,.2,1), transform .45s cubic-bezier(.4,0,.2,1);
+  }
+  .slide.active { opacity: 1; pointer-events: all; transform: translateX(0); }
+  .slide.exit { opacity: 0; transform: translateX(-60px); transition: opacity .3s ease, transform .3s ease; }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 24px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .btn {
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.15);
+    color: #fff;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 14px;
+    padding: 10px 28px;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: background .2s, border-color .2s;
+  }
+  .btn:hover { background: rgba(255,255,255,.16); }
+  .btn:disabled { opacity: .3; cursor: default; }
+  .counter { color: rgba(255,255,255,.5); font-size: 13px; min-width: 60px; text-align: center; }
+  .dots { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.2); cursor: pointer; transition: background .2s, transform .2s; }
+  .dot.active { background: #fff; transform: scale(1.3); }
+  .key-hint {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 20px; padding: 7px 20px; font-size: 11px;
+    color: rgba(255,255,255,.35); letter-spacing: .08em; pointer-events: none;
+  }
+
+  /* ─── S0 TITLE ─── */
+  .s-title { background: var(--dark); overflow: hidden; }
+  .s-title .bg-left { position: absolute; left:0; top:0; bottom:0; width:48%; background: linear-gradient(135deg,#1a3a8f,#0d1f5c); }
+  .s-title .bg-right { position: absolute; right:0; top:0; bottom:0; width:48%; background: linear-gradient(135deg,#b81c1c,#6b0f0f); }
+  .s-title .divider { position: absolute; left:50%; transform:translateX(-50%); top:0; bottom:0; width:60px; background:var(--dark); z-index:2; display:flex; align-items:center; justify-content:center; }
+  .bomb-icon { font-size:36px; animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{transform:scale(1);filter:drop-shadow(0 0 16px rgba(255,200,50,.5))} 50%{transform:scale(1.15);filter:drop-shadow(0 0 28px rgba(255,200,50,.9))} }
+  .s-title .left-text { position:absolute; left:0; width:48%; top:50%; transform:translateY(-50%); padding:0 32px 0 52px; z-index:3; text-align:center; }
+  .s-title .right-text { position:absolute; right:0; width:48%; top:50%; transform:translateY(-50%); padding:0 52px 0 32px; z-index:3; text-align:center; }
+  .team-label { font-family:'Noto Serif KR',serif; font-size:13px; letter-spacing:.25em; opacity:.7; color:#fff; margin-bottom:8px; }
+  .team-main { font-family:'Noto Serif KR',serif; font-size:28px; font-weight:900; color:#fff; line-height:1.3; }
+  .team-sub { font-size:12px; color:rgba(255,255,255,.5); margin-top:8px; }
+  .s-title .main-title { position:absolute; bottom:28px; left:0; right:0; text-align:center; z-index:4; }
+  .s-title .main-title h1 { font-family:'Noto Serif KR',serif; font-size:15px; font-weight:400; letter-spacing:.35em; color:rgba(255,255,255,.5); }
+  .s-title .top-badge { position:absolute; top:28px; left:50%; transform:translateX(-50%); z-index:4; font-family:'Noto Serif KR',serif; font-size:11px; letter-spacing:.3em; color:rgba(255,255,255,.4); border:1px solid rgba(255,255,255,.15); padding:6px 20px; border-radius:20px; white-space:nowrap; }
+
+  /* ─── S1 SIMPLE ─── */
+  .s-simple { background: var(--cream); }
+  .s-simple .header-bar { background:var(--dark); padding:22px 52px; }
+  .s-simple .header-bar .tag { font-size:10px; letter-spacing:.25em; color:var(--gold); font-weight:700; }
+  .s-simple .header-bar h2 { font-family:'Noto Serif KR',serif; font-size:26px; font-weight:900; color:#fff; margin-top:2px; }
+  .s-simple .content { padding:28px 52px; }
+  .simple-flow { display:flex; align-items:center; gap:0; margin-bottom:24px; }
+  .flow-step { flex:1; background:#fff; border-radius:12px; padding:16px 10px; text-align:center; box-shadow:0 2px 12px rgba(0,0,0,.06); }
+  .flow-step .step-num { font-size:10px; letter-spacing:.2em; color:var(--gold); margin-bottom:6px; font-weight:700; }
+  .flow-step .step-icon { font-size:24px; margin-bottom:6px; }
+  .flow-step .step-text { font-size:12px; font-weight:500; color:var(--dark); line-height:1.5; }
+  .flow-arrow { font-size:18px; color:rgba(0,0,0,.2); padding:0 6px; flex-shrink:0; }
+  .win-bar { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .win-card { border-radius:12px; padding:16px 20px; display:flex; align-items:center; gap:14px; }
+  .win-card.blue { background:var(--blue-pale); border-left:4px solid var(--blue); }
+  .win-card.red { background:var(--red-pale); border-left:4px solid var(--red); }
+  .win-card .wc-icon { font-size:26px; }
+  .win-card .wc-body .wc-team { font-size:10px; letter-spacing:.15em; font-weight:700; margin-bottom:4px; }
+  .win-card.blue .wc-team { color:var(--blue); }
+  .win-card.red .wc-team { color:var(--red); }
+  .win-card .wc-cond { font-size:13px; font-weight:600; color:var(--dark); line-height:1.4; }
+
+  /* ─── S2 DETAIL ─── */
+  .s-detail { background:var(--dark); color:#fff; }
+  .s-detail .side-label { position:absolute; left:0; top:0; bottom:0; width:7px; background:linear-gradient(180deg,var(--blue-light),var(--red-light)); }
+  .s-detail .inner { padding:28px 44px 28px 56px; }
+  .s-detail .d-tag { font-size:10px; letter-spacing:.3em; color:var(--gold); font-weight:700; margin-bottom:4px; }
+  .s-detail h2 { font-family:'Noto Serif KR',serif; font-size:26px; font-weight:900; margin-bottom:20px; }
+  .detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .detail-card { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:14px 16px; }
+  .detail-card .dc-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .detail-card .dc-icon { font-size:16px; }
+  .detail-card .dc-title { font-size:13px; font-weight:700; color:rgba(255,255,255,.9); }
+  .detail-card .dc-items { list-style:none; display:flex; flex-direction:column; gap:4px; }
+  .detail-card .dc-items li { font-size:11.5px; color:rgba(255,255,255,.6); padding-left:12px; position:relative; line-height:1.5; }
+  .detail-card .dc-items li::before { content:'–'; position:absolute; left:0; color:var(--gold); }
+  .detail-card .dc-items li strong { color:rgba(255,255,255,.9); font-weight:600; }
+  .rounds-row { display:flex; gap:8px; margin-top:6px; }
+  .round-pill { flex:1; border-radius:8px; padding:8px 4px; text-align:center; }
+  .round-pill .rp-num { font-family:'Noto Serif KR',serif; font-size:20px; font-weight:900; color:#fff; }
+  .round-pill .rp-label { font-size:11px; color:rgba(255,255,255,.5); margin-top:2px; }
+  .round-pill.r1 { background:rgba(41,82,196,.3); border:1px solid rgba(41,82,196,.5); }
+  .round-pill.r2 { background:rgba(155,50,50,.3); border:1px solid rgba(155,50,50,.5); }
+  .round-pill.r3 { background:rgba(201,168,76,.25); border:1px solid rgba(201,168,76,.4); }
+
+  /* ─── S3 LEADER ─── */
+  .s-leader { background:#f5f3ee; }
+  .s-leader .top-stripe { height:8px; background:linear-gradient(90deg,var(--blue) 0%,var(--blue) 50%,var(--red) 50%,var(--red) 100%); }
+  .s-leader .inner { padding:24px 52px; }
+  .s-leader .l-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+  .s-leader .l-tag { font-size:10px; letter-spacing:.3em; font-weight:700; color:var(--gray); }
+  .s-leader h2 { font-family:'Noto Serif KR',serif; font-size:26px; font-weight:900; color:var(--dark); margin-top:4px; }
+  .s-leader .crown { font-size:40px; }
+  .leader-content { display:grid; grid-template-columns:1fr 1px 1fr; gap:24px; }
+  .leader-divider { background:rgba(0,0,0,.1); }
+  .leader-section h3 { font-size:12px; font-weight:700; letter-spacing:.1em; color:var(--dark); margin-bottom:12px; text-transform:uppercase; }
+  .leader-item { display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; }
+  .leader-item .li-num { width:22px; height:22px; border-radius:50%; background:var(--dark); color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px; }
+  .leader-item .li-text { font-size:12px; line-height:1.55; color:var(--dark); }
+  .leader-item .li-text strong { font-weight:700; }
+  .share-types { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .share-pill { background:#fff; border-radius:8px; padding:10px 12px; border-left:3px solid var(--gold); }
+  .share-pill .sp-name { font-size:11.5px; font-weight:700; color:var(--dark); }
+  .share-pill .sp-desc { font-size:11px; color:var(--gray); margin-top:2px; line-height:1.4; }
+
+  /* ─── S4 BLUE ROLES ─── */
+  .s-roles-blue { background:#0f1e5a; color:#fff; }
+  .s-roles-red { background:#2a0808; color:#fff; }
+  .s-roles-gray { background:#1c1c2a; color:#fff; }
+  .roles-topbar { padding:16px 48px 14px; display:flex; align-items:center; justify-content:space-between; }
+  .s-roles-blue .roles-topbar { background:var(--blue-light); }
+  .s-roles-red .roles-topbar { background:var(--red-light); }
+  .s-roles-gray .roles-topbar { background:#3a3a50; }
+  .roles-topbar .tag { font-size:10px; letter-spacing:.3em; color:rgba(255,255,255,.6); font-weight:700; }
+  .roles-topbar h2 { font-family:'Noto Serif KR',serif; font-size:22px; font-weight:900; color:#fff; margin-top:2px; }
+  .roles-topbar .team-badge { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); border-radius:30px; padding:6px 16px; font-size:13px; font-weight:700; color:#fff; }
+  .roles-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding:16px 28px; }
+  .role-card { border-radius:10px; padding:12px 10px; }
+  .role-card.blue-card { background:rgba(41,82,196,.25); border:1px solid rgba(100,140,255,.25); }
+  .role-card.red-card { background:rgba(184,28,28,.2); border:1px solid rgba(255,100,100,.2); }
+  .role-card.gray-card { background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); }
+  .role-card .rc-icon { font-size:20px; margin-bottom:5px; }
+  .role-card .rc-name { font-size:12.5px; font-weight:700; color:#fff; margin-bottom:4px; line-height:1.3; }
+  .role-card .rc-desc { font-size:10.5px; color:rgba(255,255,255,.6); line-height:1.5; }
+  .role-card .rc-key { display:inline-block; margin-top:5px; font-size:9px; font-weight:700; letter-spacing:.1em; padding:3px 7px; border-radius:4px; text-transform:uppercase; }
+  .blue-card .rc-key { background:rgba(41,82,196,.5); color:#a0c0ff; }
+  .red-card .rc-key { background:rgba(184,28,28,.5); color:#ffaaaa; }
+  .gray-card .rc-key { background:rgba(255,255,255,.1); color:rgba(255,255,255,.6); }
+
+  /* ─── S7/S8 COMBO ─── */
+  .s-combo, .s-combo2 { background:var(--cream); }
+  .combo-header { background:var(--dark); padding:20px 48px 16px; display:flex; align-items:baseline; gap:14px; }
+  .combo-header .tag { font-size:10px; letter-spacing:.25em; color:var(--gold); font-weight:700; }
+  .combo-header h2 { font-family:'Noto Serif KR',serif; font-size:22px; font-weight:900; color:#fff; }
+  .combo-header .badge { margin-left:auto; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15); border-radius:20px; padding:5px 14px; font-size:12px; color:rgba(255,255,255,.6); }
+  .combo-content { padding:18px 32px; display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .combo-group h3 { font-size:10px; letter-spacing:.2em; font-weight:700; text-transform:uppercase; color:var(--gray); margin-bottom:8px; padding-bottom:5px; border-bottom:1px solid rgba(0,0,0,.1); }
+  .combo-item { background:#fff; border-radius:10px; padding:10px 12px; margin-bottom:7px; border-left:3px solid transparent; box-shadow:0 1px 6px rgba(0,0,0,.06); }
+  .combo-item.lvl-1 { border-left-color:#52c97a; }
+  .combo-item.lvl-2 { border-left-color:#f5a623; }
+  .combo-item.lvl-3 { border-left-color:#e0302b; }
+  .combo-item.lvl-gold { border-left-color:var(--gold); }
+  .combo-item .ci-top { display:flex; align-items:center; gap:8px; margin-bottom:5px; }
+  .combo-item .ci-num { font-size:11px; font-weight:700; color:var(--gray); flex-shrink:0; }
+  .combo-item .ci-name { font-size:12.5px; font-weight:700; color:var(--dark); }
+  .combo-item .ci-chips { display:flex; flex-wrap:wrap; gap:3px; }
+  .chip { font-size:9.5px; font-weight:700; border-radius:4px; padding:2px 7px; letter-spacing:.03em; }
+  .chip.blue { background:var(--blue-pale); color:var(--blue); }
+  .chip.red { background:var(--red-pale); color:var(--red); }
+  .chip.gray { background:var(--gray-light); color:var(--gray); }
+  .chip.gold { background:#fff3d0; color:#8a6000; }
+
+  /* ─── S9 TIPS ─── */
+  .s-tips { background:var(--dark); color:#fff; overflow:hidden; position:relative; }
+  .s-tips .bg-circle { position:absolute; width:500px; height:500px; border-radius:50%; background:radial-gradient(circle,rgba(201,168,76,.08) 0%,transparent 70%); top:-100px; right:-100px; pointer-events:none; }
+  .s-tips .inner { padding:36px 52px; position:relative; z-index:1; }
+  .s-tips .t-tag { font-size:10px; letter-spacing:.3em; color:var(--gold); font-weight:700; margin-bottom:4px; }
+  .s-tips h2 { font-family:'Noto Serif KR',serif; font-size:28px; font-weight:900; color:#fff; margin-bottom:24px; }
+  .tips-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .tip-card { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:18px 16px; }
+  .tip-card .tc-icon { font-size:24px; margin-bottom:8px; }
+  .tip-card .tc-title { font-size:13px; font-weight:700; color:#fff; margin-bottom:7px; }
+  .tip-card .tc-text { font-size:11.5px; color:rgba(255,255,255,.55); line-height:1.6; }
+  .tip-card .tc-text strong { color:rgba(255,255,255,.85); font-weight:600; }
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+  <!-- S0 Title -->
+  <div class="slide active" id="slide-0">
+    <div class="s-title">
+      <div class="bg-left"></div>
+      <div class="bg-right"></div>
+      <div class="divider"><span class="bomb-icon">💣</span></div>
+      <div class="left-text">
+        <div class="team-label">BLUE TEAM</div>
+        <div class="team-main">🏛️<br>대통령</div>
+        <div class="team-sub">폭파범을 피하라</div>
+      </div>
+      <div class="right-text">
+        <div class="team-label">RED TEAM</div>
+        <div class="team-main">🧨<br>폭파범</div>
+        <div class="team-sub">대통령을 찾아라</div>
+      </div>
+      <div class="top-badge">TWO ROOMS AND A BOOM</div>
+      <div class="main-title"><h1>두 개의 방과 폭탄 &nbsp;·&nbsp; 룰 가이드</h1></div>
+    </div>
+  </div>
+
+  <!-- S1 Simple Rules -->
+  <div class="slide" id="slide-1">
+    <div class="s-simple">
+      <div class="header-bar">
+        <div class="tag">SLIDE 01 &nbsp;·&nbsp; OVERVIEW</div>
+        <h2>한 줄 요약</h2>
+      </div>
+      <div class="content">
+        <div class="simple-flow">
+          <div class="flow-step"><div class="step-num">STEP 01</div><div class="step-icon">🃏</div><div class="step-text">역할 카드를<br>나눠받아요</div></div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step"><div class="step-num">STEP 02</div><div class="step-icon">🚪</div><div class="step-text">두 방으로<br>무작위 배치</div></div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step"><div class="step-num">STEP 03</div><div class="step-icon">🗣️</div><div class="step-text">대화·속임수로<br>정보 수집</div></div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step"><div class="step-num">STEP 04</div><div class="step-icon">🔄</div><div class="step-text">라운드마다<br>인질 교환</div></div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step"><div class="step-num">FINAL</div><div class="step-icon">🏆</div><div class="step-text">카드 공개 후<br>승패 결정!</div></div>
+        </div>
+        <div class="win-bar">
+          <div class="win-card blue">
+            <div class="wc-icon">🏛️</div>
+            <div class="wc-body">
+              <div class="wc-team">🔵 블루팀 승리 조건</div>
+              <div class="wc-cond">게임 종료 시<br><strong>대통령 ≠ 폭파범</strong> (다른 방)</div>
+            </div>
+          </div>
+          <div class="win-card red">
+            <div class="wc-icon">💣</div>
+            <div class="wc-body">
+              <div class="wc-team">🔴 레드팀 승리 조건</div>
+              <div class="wc-cond">게임 종료 시<br><strong>대통령 = 폭파범</strong> (같은 방)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S2 Detail -->
+  <div class="slide" id="slide-2">
+    <div class="s-detail">
+      <div class="side-label"></div>
+      <div class="inner">
+        <div class="d-tag">SLIDE 02 &nbsp;·&nbsp; DETAILED RULES</div>
+        <h2>상세 규칙</h2>
+        <div class="detail-grid">
+          <div class="detail-card">
+            <div class="dc-head"><span class="dc-icon">👥</span><span class="dc-title">인원 &amp; 팀 구성</span></div>
+            <ul class="dc-items">
+              <li>6~30명 플레이 가능 (파티 게임)</li>
+              <li>블루팀 vs 레드팀, <strong>짝수 인원</strong> 권장</li>
+              <li>홀수 시 <strong>겜블러(그레이)</strong> 1명 추가</li>
+              <li>대통령 1장 + 폭파범 1장 필수 포함</li>
+            </ul>
+          </div>
+          <div class="detail-card">
+            <div class="dc-head"><span class="dc-icon">⏱️</span><span class="dc-title">라운드 구성</span></div>
+            <div class="rounds-row">
+              <div class="round-pill r1"><div class="rp-num">3분</div><div class="rp-label">1라운드</div></div>
+              <div class="round-pill r2"><div class="rp-num">2분</div><div class="rp-label">2라운드</div></div>
+              <div class="round-pill r3"><div class="rp-num">1분</div><div class="rp-label">3라운드</div></div>
+            </div>
+          </div>
+          <div class="detail-card">
+            <div class="dc-head"><span class="dc-icon">🔒</span><span class="dc-title">절대 금지 사항</span></div>
+            <ul class="dc-items">
+              <li>라운드 중 <strong>다른 방 입장 불가</strong></li>
+              <li>게임 시작 직전 카드 공개 금지</li>
+              <li>인질 교환 중 정보 공유 불가</li>
+            </ul>
+          </div>
+          <div class="detail-card">
+            <div class="dc-head"><span class="dc-icon">🔄</span><span class="dc-title">인질 교환 수</span></div>
+            <ul class="dc-items">
+              <li><strong>1라운드:</strong> 방당 인원 ÷ 4 명 교환</li>
+              <li><strong>2라운드:</strong> 방당 인원 ÷ 4 명 교환</li>
+              <li><strong>3라운드:</strong> 1명 교환 (마지막!)</li>
+              <li>리더는 인질이 될 수 없어요</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S3 Leader -->
+  <div class="slide" id="slide-3">
+    <div class="s-leader">
+      <div class="top-stripe"></div>
+      <div class="inner">
+        <div class="l-header">
+          <div>
+            <div class="l-tag">SLIDE 03 &nbsp;·&nbsp; LEADER &amp; CARD SHARE</div>
+            <h2>리더 &amp; 정보 공유</h2>
+          </div>
+          <div class="crown">👑</div>
+        </div>
+        <div class="leader-content">
+          <div class="leader-section">
+            <h3>리더 역할</h3>
+            <div class="leader-item"><div class="li-num">1</div><div class="li-text">각 방 시작 시 <strong>투표로 리더 선출</strong>. 리더 카드를 별도 수령</div></div>
+            <div class="leader-item"><div class="li-num">2</div><div class="li-text">라운드 종료 시 <strong>리더가 인질 지명</strong>. 리더 본인은 인질 불가</div></div>
+            <div class="leader-item"><div class="li-num">3</div><div class="li-text"><strong>하야</strong>: 리더가 자발적으로 다른 사람에게 카드 전달</div></div>
+            <div class="leader-item"><div class="li-num">4</div><div class="li-text"><strong>탄핵</strong>: 손들어 투표 발의 → 과반수 지목 시 교체</div></div>
+          </div>
+          <div class="leader-divider"></div>
+          <div class="leader-section">
+            <h3>카드 공유 방법</h3>
+            <div class="share-types">
+              <div class="share-pill"><div class="sp-name">🤝 카드 공유</div><div class="sp-desc">1:1로 서로 카드를 동시에 보여줌</div></div>
+              <div class="share-pill"><div class="sp-name">📢 공개</div><div class="sp-desc">방 전체에게 내 카드 공개</div></div>
+              <div class="share-pill"><div class="sp-name">🎨 색상 공유</div><div class="sp-desc">팀 색깔(블루/레드)만 공개</div></div>
+              <div class="share-pill"><div class="sp-name">🔐 개인 공개</div><div class="sp-desc">특정 1명에게만 카드 보여줌</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S4 Blue Roles -->
+  <div class="slide" id="slide-4">
+    <div class="s-roles-blue">
+      <div class="roles-topbar">
+        <div><div class="tag">SLIDE 04 &nbsp;·&nbsp; BLUE TEAM</div><h2>블루팀 역할</h2></div>
+        <div class="team-badge">🔵 대통령을 지켜라</div>
+      </div>
+      <div class="roles-grid">
+        <div class="role-card blue-card"><div class="rc-icon">🏛️</div><div class="rc-name">대통령</div><div class="rc-desc">블루팀의 핵심. 종료 시 폭파범과 다른 방에 있어야 승리</div><span class="rc-key">MUST PROTECT</span></div>
+        <div class="role-card blue-card"><div class="rc-icon">🩺</div><div class="rc-name">의사</div><div class="rc-desc">대통령과 카드 공유 필수. 못하면 블루팀 패배 (추가 조건)</div><span class="rc-key">카드 공유 필수</span></div>
+        <div class="role-card blue-card"><div class="rc-icon">🕵️</div><div class="rc-name">스파이</div><div class="rc-desc">카드 색깔이 레드색. 적진에서 정보 수집하는 이중 요원</div><span class="rc-key">위장 역할</span></div>
+        <div class="role-card blue-card"><div class="rc-icon">✈️</div><div class="rc-name">대사</div><div class="rc-desc">두 방을 자유롭게 이동 가능. 단 투표 참여 불가</div><span class="rc-key">자유 이동</span></div>
+        <div class="role-card blue-card"><div class="rc-icon">🤐</div><div class="rc-name">코이 보이</div><div class="rc-desc">색상 공유만 가능. 카드 내용 공개 완전 불가</div><span class="rc-key">정보 차단</span></div>
+        <div class="role-card blue-card"><div class="rc-icon">🤝</div><div class="rc-name">협상가</div><div class="rc-desc">카드 전체 공유만 가능. 색상만 공개 불가</div><span class="rc-key">공유 제한</span></div>
+        <div class="role-card blue-card"><div class="rc-icon">🔍</div><div class="rc-name">에이전트</div><div class="rc-desc">라운드당 1회, 누군가에게 강제 카드 공개 요구</div><span class="rc-key">강제 공개</span></div>
+        <div class="role-card blue-card"><div class="rc-icon">💙</div><div class="rc-name">블루팀</div><div class="rc-desc">특수 능력 없음. 팀을 위해 대통령을 보호</div><span class="rc-key">일반 팀원</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S5 Red Roles -->
+  <div class="slide" id="slide-5">
+    <div class="s-roles-red">
+      <div class="roles-topbar">
+        <div><div class="tag">SLIDE 05 &nbsp;·&nbsp; RED TEAM</div><h2>레드팀 역할</h2></div>
+        <div class="team-badge">🔴 대통령을 찾아라</div>
+      </div>
+      <div class="roles-grid">
+        <div class="role-card red-card"><div class="rc-icon">🧨</div><div class="rc-name">폭파범</div><div class="rc-desc">레드팀의 핵심. 종료 시 대통령과 같은 방에 있으면 승리</div><span class="rc-key">MUST HIDE</span></div>
+        <div class="role-card red-card"><div class="rc-icon">⚙️</div><div class="rc-name">엔지니어</div><div class="rc-desc">폭파범과 카드 공유 필수. 못하면 레드팀 패배 (추가 조건)</div><span class="rc-key">카드 공유 필수</span></div>
+        <div class="role-card red-card"><div class="rc-icon">🕵️‍♀️</div><div class="rc-name">스파이</div><div class="rc-desc">카드 색깔이 블루색. 블루팀인 척 침투하는 이중 요원</div><span class="rc-key">위장 역할</span></div>
+        <div class="role-card red-card"><div class="rc-icon">✈️</div><div class="rc-name">대사</div><div class="rc-desc">두 방을 자유롭게 이동. 정보 운반에 최적</div><span class="rc-key">자유 이동</span></div>
+        <div class="role-card red-card"><div class="rc-icon">🤐</div><div class="rc-name">코이 보이</div><div class="rc-desc">색상 공유만 가능. 의심을 사기 쉬운 역할</div><span class="rc-key">정보 차단</span></div>
+        <div class="role-card red-card"><div class="rc-icon">⚖️</div><div class="rc-name">집행관</div><div class="rc-desc">라운드당 1회, 두 플레이어를 지정해 서로 강제 공개</div><span class="rc-key">강제 공개</span></div>
+        <div class="role-card red-card"><div class="rc-icon">🤝</div><div class="rc-name">협상가</div><div class="rc-desc">카드 전체 공유만 가능. 색상만 공개 불가</div><span class="rc-key">공유 제한</span></div>
+        <div class="role-card red-card"><div class="rc-icon">❤️</div><div class="rc-name">레드팀</div><div class="rc-desc">특수 능력 없음. 팀을 위해 폭파범을 엄호</div><span class="rc-key">일반 팀원</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S6 Gray Roles -->
+  <div class="slide" id="slide-6">
+    <div class="s-roles-gray">
+      <div class="roles-topbar">
+        <div><div class="tag">SLIDE 06 &nbsp;·&nbsp; GRAY (NEUTRAL)</div><h2>그레이 (중립) 역할</h2></div>
+        <div class="team-badge">⚪ 개인 승리 조건</div>
+      </div>
+      <div class="roles-grid" style="grid-template-columns:repeat(3,1fr); padding:20px 40px;">
+        <div class="role-card gray-card"><div class="rc-icon">🎰</div><div class="rc-name">겜블러</div><div class="rc-desc">마지막 라운드 직전, 어느 팀이 이길지 공개 선언. 맞으면 승리, 틀리면 패배</div><span class="rc-key">예측 승부</span></div>
+        <div class="role-card gray-card"><div class="rc-icon">🛡️</div><div class="rc-name">생존자</div><div class="rc-desc">게임 종료 시 폭파범과 다른 방에 있으면 승리. 혼자만의 생존 목표</div><span class="rc-key">폭파범 회피</span></div>
+        <div class="role-card gray-card"><div class="rc-icon">⚔️</div><div class="rc-name">라이벌</div><div class="rc-desc">게임 종료 시 대통령과 다른 방에 있으면 승리. 대통령을 피해야</div><span class="rc-key">대통령 회피</span></div>
+        <div class="role-card gray-card"><div class="rc-icon">🎯</div><div class="rc-name">저격수</div><div class="rc-desc">게임 종료 시 한 명을 지목. 지목된 사람이 표적이면 승리</div><span class="rc-key">타겟 맞추기</span></div>
+        <div class="role-card gray-card"><div class="rc-icon">🎪</div><div class="rc-name">표적</div><div class="rc-desc">저격수에게 지목당하지 않으면 승리. 저격수 파악이 핵심</div><span class="rc-key">지목 회피</span></div>
+        <div class="role-card gray-card"><div class="rc-icon">📎</div><div class="rc-name">인턴</div><div class="rc-desc">게임 종료 시 대통령과 같은 방에 있으면 승리. 대통령 찾기가 목표</div><span class="rc-key">대통령 동행</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S7 Combo 1 -->
+  <div class="slide" id="slide-7">
+    <div class="s-combo">
+      <div class="combo-header">
+        <div class="tag">SLIDE 07 &nbsp;·&nbsp; COMBINATIONS</div>
+        <h2>17~18인 역할 추천 조합</h2>
+        <div class="badge">입문 · 중급</div>
+      </div>
+      <div class="combo-content">
+        <div class="combo-group">
+          <h3>🌱 입문 (처음 하는 그룹)</h3>
+          <div class="combo-item lvl-1">
+            <div class="ci-top"><span class="ci-num">조합 1</span><span class="ci-name">순수 팀전</span></div>
+            <div class="ci-chips"><span class="chip blue">대통령</span><span class="chip red">폭파범</span><span class="chip blue">블루팀 ×7</span><span class="chip red">레드팀 ×7</span><span class="chip gray">겜블러</span></div>
+          </div>
+          <div class="combo-item lvl-1">
+            <div class="ci-top"><span class="ci-num">조합 2</span><span class="ci-name">첫 스파이 도입</span></div>
+            <div class="ci-chips"><span class="chip blue">대통령</span><span class="chip red">폭파범</span><span class="chip blue">블루 스파이</span><span class="chip red">레드 스파이</span><span class="chip blue">블루팀 ×6</span><span class="chip red">레드팀 ×6</span><span class="chip gray">겜블러</span></div>
+          </div>
+        </div>
+        <div class="combo-group">
+          <h3>🔥 중급 (한 번 이상 해본 그룹)</h3>
+          <div class="combo-item lvl-2">
+            <div class="ci-top"><span class="ci-num">조합 3</span><span class="ci-name">의사/엔지니어 도입</span></div>
+            <div class="ci-chips"><span class="chip blue">대통령</span><span class="chip red">폭파범</span><span class="chip blue">의사</span><span class="chip red">엔지니어</span><span class="chip blue">블루 스파이</span><span class="chip red">레드 스파이</span><span class="chip blue">블루팀 ×5</span><span class="chip red">레드팀 ×5</span><span class="chip gray">겜블러</span></div>
+          </div>
+          <div class="combo-item lvl-2">
+            <div class="ci-top"><span class="ci-num">조합 4</span><span class="ci-name">코이보이 + 협상가</span></div>
+            <div class="ci-chips"><span class="chip blue">대통령</span><span class="chip red">폭파범</span><span class="chip blue">의사</span><span class="chip red">엔지니어</span><span class="chip blue">블루 코이보이</span><span class="chip red">레드 코이보이</span><span class="chip blue">블루 협상가</span><span class="chip red">레드 협상가</span><span class="chip blue">블루팀 ×4</span><span class="chip red">레드팀 ×4</span><span class="chip gray">겜블러</span></div>
+          </div>
+          <div class="combo-item lvl-2">
+            <div class="ci-top"><span class="ci-num">조합 5</span><span class="ci-name">대사 도입 (정보전)</span></div>
+            <div class="ci-chips"><span class="chip blue">대통령</span><span class="chip red">폭파범</span><span class="chip blue">의사</span><span class="chip red">엔지니어</span><span class="chip blue">블루 대사</span><span class="chip red">레드 대사</span><span class="chip blue">블루 스파이</span><span class="chip red">레드 스파이</span><span class="chip blue">블루팀 ×4</span><span class="chip red">레드팀 ×4</span><span class="chip gray">겜블러</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S8 Combo 2 -->
+  <div class="slide" id="slide-8">
+    <div class="s-combo2">
+      <div class="combo-header">
+        <div class="tag">SLIDE 08 &nbsp;·&nbsp; COMBINATIONS</div>
+        <h2>17~18인 역할 추천 조합</h2>
+        <div class="badge">고급 · 풀 세팅</div>
+      </div>
+      <div class="combo-content">
+        <div class="combo-group">
+          <h3>💥 고급 (숙련자 그룹)</h3>
+          <div class="combo-item lvl-3">
+            <div class="ci-top"><span class="ci-num">조합 6</span><span class="ci-name">에이전트 + 집행관</span></div>
+            <div class="ci-chips"><span class="chip blue">대통령</span><span class="chip red">폭파범</span><span class="chip blue">의사</span><span class="chip red">엔지니어</span><span class="chip blue">블루 에이전트</span><span class="chip red">레드 집행관</span><span class="chip blue">블루 스파이</span><span class="chip red">레드 스파이</span><span class="chip blue">블루 코이보이</span><span class="chip red">레드 코이보이</span><span class="chip blue">블루팀 ×3</span><span class="chip red">레드팀 ×3</span><span class="chip gray">겜블러</span></div>
+          </div>
+          <div class="combo-item lvl-3">
+            <div class="ci-top"><span class="ci-num">조합 7</span><span class="ci-name">중립 다수 (혼돈!)</span></div>
+            <div class="ci-chips"><span class="chip blue">대통령</span><span class="chip red">폭파범</span><span class="chip blue">의사</span><span class="chip red">엔지니어</span><span class="chip blue">블루 스파이</span><span class="chip red">레드 스파이</span><span class="chip blue">블루팀 ×3</span><span class="chip red">레드팀 ×3</span><span class="chip gray">겜블러</span><span class="chip gray">생존자</span><span class="chip gray">라이벌</span><span class="chip gray">저격수</span><span class="chip gray">표적</span></div>
+          </div>
+          <div class="combo-item lvl-3">
+            <div class="ci-top"><span class="ci-num">조합 8</span><span class="ci-name">대사 다중 (정보 유통)</span></div>
+            <div class="ci-chips"><span class="chip blue">대통령</span><span class="chip red">폭파범</span><span class="chip blue">의사</span><span class="chip red">엔지니어</span><span class="chip blue">블루 대사 ×2</span><span class="chip red">레드 대사 ×2</span><span class="chip blue">블루 스파이</span><span class="chip red">레드 스파이</span><span class="chip blue">블루팀 ×3</span><span class="chip red">레드팀 ×3</span><span class="chip gray">겜블러</span></div>
+          </div>
+        </div>
+        <div class="combo-group">
+          <h3>⭐ 전문가 / 추천 세팅</h3>
+          <div class="combo-item lvl-3">
+            <div class="ci-top"><span class="ci-num">조합 9</span><span class="ci-name">스파이 집중 (심리전)</span></div>
+            <div class="ci-chips"><span class="chip blue">대통령</span><span class="chip red">폭파범</span><span class="chip blue">의사</span><span class="chip red">엔지니어</span><span class="chip blue">블루 스파이 ×2</span><span class="chip red">레드 스파이 ×2</span><span class="chip blue">블루 코이보이</span><span class="chip red">레드 코이보이</span><span class="chip blue">블루팀 ×3</span><span class="chip red">레드팀 ×3</span><span class="chip gray">겜블러</span></div>
+          </div>
+          <div class="combo-item lvl-gold">
+            <div class="ci-top"><span class="ci-num" style="color:#8a6000">조합 10</span><span class="ci-name">🏆 풀 세팅 (재미 극대화)</span></div>
+            <div class="ci-chips"><span class="chip blue">대통령</span><span class="chip red">폭파범</span><span class="chip blue">의사</span><span class="chip red">엔지니어</span><span class="chip blue">블루 대사</span><span class="chip red">레드 대사</span><span class="chip blue">블루 스파이</span><span class="chip red">레드 스파이</span><span class="chip blue">블루 에이전트</span><span class="chip red">레드 집행관</span><span class="chip blue">블루 코이보이</span><span class="chip red">레드 코이보이</span><span class="chip gray">겜블러</span><span class="chip gray">생존자</span><span class="chip gray">라이벌</span><span class="chip gray">저격수</span><span class="chip gray">표적</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S9 Tips -->
+  <div class="slide" id="slide-9">
+    <div class="s-tips">
+      <div class="bg-circle"></div>
+      <div class="inner">
+        <div class="t-tag">SLIDE 09 &nbsp;·&nbsp; PRO TIPS</div>
+        <h2>운영 꿀팁 🍯</h2>
+        <div class="tips-grid">
+          <div class="tip-card"><div class="tc-icon">👥</div><div class="tc-title">최적 인원</div><div class="tc-text"><strong>14인이 베스트</strong>라는 평이 많아요. 방당 7명이 딱 적당해요.</div></div>
+          <div class="tip-card"><div class="tc-icon">📈</div><div class="tc-title">조합 순서</div><div class="tc-text">처음엔 <strong>조합 1 → 2 → 3</strong> 순서로. 한 판씩 올라가는 게 최고!</div></div>
+          <div class="tip-card"><div class="tc-icon">⏱️</div><div class="tc-title">타이머 준비</div><div class="tc-text">핸드폰 타이머 필수! <strong>3분/2분/1분</strong> 또는 5분/3분/1분 중 선택.</div></div>
+          <div class="tip-card"><div class="tc-icon">🃏</div><div class="tc-title">카드 공개 연출</div><div class="tc-text">대통령/폭파범 → 특수 역할 → 일반 팀원 순으로 공개하면 반전 연출 UP!</div></div>
+          <div class="tip-card"><div class="tc-icon">🗣️</div><div class="tc-title">룰 설명 팁</div><div class="tc-text">카드를 테이블에 펼쳐놓고 설명. <strong>조합 1로 한 판</strong> 먼저 하는 게 최선!</div></div>
+          <div class="tip-card"><div class="tc-icon">🏠</div><div class="tc-title">공간 세팅</div><div class="tc-text">두 방은 <strong>소리가 들리지 않아야</strong> 해요. 서로 보이는 건 괜찮아요.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="controls">
+  <button class="btn" id="btn-prev" disabled>← 이전</button>
+  <div class="dots" id="dots"></div>
+  <span class="counter" id="counter">1 / 10</span>
+  <button class="btn" id="btn-next">다음 →</button>
+</div>
+
+<div class="key-hint">← → 키보드로 이동 가능</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const btnPrev = document.getElementById('btn-prev');
+  const btnNext = document.getElementById('btn-next');
+  const counter = document.getElementById('counter');
+  const dotsContainer = document.getElementById('dots');
+  let current = 0;
+  const total = slides.length;
+
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.addEventListener('click', () => goTo(i));
+    dotsContainer.appendChild(d);
+  }
+
+  function goTo(n) {
+    if (n < 0 || n >= total) return;
+    slides[current].classList.remove('active');
+    slides[current].classList.add('exit');
+    const prev = current;
+    setTimeout(() => slides[prev].classList.remove('exit'), 350);
+    current = n;
+    slides[current].classList.add('active');
+    dotsContainer.querySelectorAll('.dot').forEach((d,i) => d.classList.toggle('active', i === current));
+    counter.textContent = `${current + 1} / ${total}`;
+    btnPrev.disabled = current === 0;
+    btnNext.disabled = current === total - 1;
+  }
+
+  btnPrev.addEventListener('click', () => goTo(current - 1));
+  btnNext.addEventListener('click', () => goTo(current + 1));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goTo(current + 1);
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') goTo(current - 1);
+  });
+</script>
+</body>
+</html>
